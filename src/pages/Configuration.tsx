@@ -129,10 +129,14 @@ export default function Configuration() {
       setSaving(false);
       return;
     }
-    if (data.user && newUser.role === "admin") {
-      await supabase.from("user_roles").insert({ user_id: data.user.id, role: "admin" });
+    if (data.user) {
+      // Auto-approve users created by the admin
+      await supabase.from("profiles").update({ status: "approved" }).eq("id", data.user.id);
+      if (newUser.role === "admin") {
+        await supabase.from("user_roles").insert({ user_id: data.user.id, role: "admin" });
+      }
     }
-    toast({ title: "Usuario creado. Debe verificar su email para poder ingresar." });
+    toast({ title: "Usuario creado y aprobado. Debe verificar su email para poder ingresar." });
     setDialogOpen(false);
     setNewUser({ email: "", password: "", full_name: "", role: "user" });
     setSaving(false);
