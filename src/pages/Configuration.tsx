@@ -88,8 +88,8 @@ export default function Configuration() {
       if (!nombre) continue;
       const { error } = await supabase.from("products").upsert({
         nombre: nombre.trim(),
-        categoria: CATEGORIAS.includes(categoria?.trim()) ? categoria.trim() : "Otros",
-        unidad: UNIDADES.includes(unidad?.trim()) ? unidad.trim() : "m2",
+        categoria: categoria?.trim() || "Otros",
+        unidad: unidad?.trim() || "m2",
         stock_minimo: stock_minimo?.trim() ? Number(stock_minimo.trim().replace(",", ".")) : null,
       }, { onConflict: "nombre" });
       if (error) { failed++; console.error(`Error importando "${nombre}":`, error.message); }
