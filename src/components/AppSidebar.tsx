@@ -4,7 +4,7 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter,
 } from "@/components/ui/sidebar";
 import {
-  LayoutDashboard, Package, ArrowLeftRight, CalendarDays, BarChart3, Settings, LogOut, Package2,
+  LayoutDashboard, Package, ArrowLeftRight, CalendarDays, BarChart3, Settings, LogOut, Package2, Boxes,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Productos", url: "/productos", icon: Package },
+  { title: "Stock", url: "/stock", icon: Boxes },
   { title: "Movimientos", url: "/movimientos", icon: ArrowLeftRight },
   { title: "Resumen Diario", url: "/resumen", icon: CalendarDays },
   { title: "Análisis", url: "/analisis", icon: BarChart3 },
