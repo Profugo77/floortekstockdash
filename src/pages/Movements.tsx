@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Mic, MicOff, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Mic, Search, X, TrendingUp, TrendingDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import VoiceCard from "@/components/VoiceCard";
@@ -23,6 +23,92 @@ type Movement = {
 };
 
 const emptyForm = { product_id: "", tipo: "entrada" as "entrada" | "salida", cantidad: 1, fecha: format(new Date(), "yyyy-MM-dd"), observaciones: "" };
+
+// Searchable product combobox
+function ProductSearch({ products, value, onChange }: {
+  products: Product[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selected = products.find(p => p.id === value);
+  const filtered = query.length > 0
+    ? products.filter(p => p.nombre.toLowerCase().includes(query.toLowerCase())).slice(0, 20)
+    : products.slice(0, 20);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const handleSelect = (p: Product) => {
+    onChange(p.id);
+    setQuery(p.nombre);
+    setOpen(false);
+  };
+
+  const handleClear = () => {
+    onChange("");
+    setQuery("");
+    inputRef.current?.focus();
+  };
+
+  // Sync display when value changes externally (e.g. form reset)
+  useEffect(() => {
+    if (!value) setQuery("");
+    else if (selected) setQuery(selected.nombre);
+  }, [value, selected]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Input
+          ref={inputRef}
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); onChange(""); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Buscar producto..."
+          className="pl-8 pr-8"
+        />
+        {query && (
+          <button onClick={handleClear} className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-muted-foreground">Sin resultados</div>
+          ) : (
+            filtered.map(p => (
+              <button
+                key={p.id}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground flex justify-between items-center gap-2"
+                onMouseDown={e => { e.preventDefault(); handleSelect(p); }}
+              >
+                <span className="truncate">{p.nombre}</span>
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {Number(p.stock_actual).toLocaleString("es-AR")} {p.unidad}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Movements() {
   const { user } = useAuth();
@@ -151,14 +237,17 @@ export default function Movements() {
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{m.fecha}</TableCell>
                     <TableCell className="font-medium">{m.products?.nombre ?? "—"}</TableCell>
                     <TableCell>
-                      <Badge className={m.tipo === "entrada"
-                        ? "bg-primary/10 text-primary border-0"
-                        : "bg-destructive/10 text-destructive border-0"
-                      }>
-                        {m.tipo === "entrada" ? "↑ Entrada" : "↓ Salida"}
-                      </Badge>
+                      {m.tipo === "entrada" ? (
+                        <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800 gap-1">
+                          <TrendingUp className="w-3 h-3" /> Entrada
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 gap-1">
+                          <TrendingDown className="w-3 h-3" /> Salida
+                        </Badge>
+                      )}
                     </TableCell>
-                    <TableCell className="text-right font-mono font-semibold">
+                    <TableCell className={`text-right font-mono font-semibold ${m.tipo === "entrada" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                       {m.tipo === "entrada" ? "+" : "-"}{Number(m.cantidad).toLocaleString("es-AR")} {m.products?.unidad}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{m.observaciones || "—"}</TableCell>
@@ -179,27 +268,39 @@ export default function Movements() {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label>Producto *</Label>
-              <Select value={form.product_id} onValueChange={v => setForm(f => ({ ...f, product_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Seleccioná un producto" /></SelectTrigger>
-                <SelectContent>
-                  {products.map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.nombre} <span className="text-muted-foreground">({Number(p.stock_actual).toLocaleString("es-AR")} {p.unidad})</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ProductSearch
+                products={products}
+                value={form.product_id}
+                onChange={v => setForm(f => ({ ...f, product_id: v }))}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Tipo</Label>
-                <Select value={form.tipo} onValueChange={v => setForm(f => ({ ...f, tipo: v as "entrada" | "salida" }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="entrada">↑ Entrada</SelectItem>
-                    <SelectItem value="salida">↓ Salida</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, tipo: "entrada" }))}
+                    className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors
+                      ${form.tipo === "entrada"
+                        ? "bg-green-500 text-white border-green-500"
+                        : "bg-background text-muted-foreground border-border hover:bg-green-50 hover:text-green-700 hover:border-green-300 dark:hover:bg-green-900/20"
+                      }`}
+                  >
+                    <TrendingUp className="w-4 h-4" /> Entrada
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, tipo: "salida" }))}
+                    className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors
+                      ${form.tipo === "salida"
+                        ? "bg-red-500 text-white border-red-500"
+                        : "bg-background text-muted-foreground border-border hover:bg-red-50 hover:text-red-700 hover:border-red-300 dark:hover:bg-red-900/20"
+                      }`}
+                  >
+                    <TrendingDown className="w-4 h-4" /> Salida
+                  </button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Cantidad</Label>
@@ -217,7 +318,13 @@ export default function Movements() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "Guardar"}</Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className={form.tipo === "entrada" ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}
+            >
+              {saving ? "Guardando..." : form.tipo === "entrada" ? "Registrar Entrada" : "Registrar Salida"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
