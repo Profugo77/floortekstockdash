@@ -1,19 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Search, Download, Boxes } from "lucide-react";
+import { Search, Download, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-type Product = {
-  id: string; nombre: string; categoria: string; unidad: string;
-  stock_actual: number; stock_minimo: number | null; stock_minimo_activo: boolean;
-};
-
-type CategorySummary = { categoria: string; total: number; count: number; lowCount: number };
+import StockCategoryCards, { CategorySummary } from "@/components/stock/StockCategoryCards";
+import StockChart from "@/components/stock/StockChart";
+import StockTable, { Product, SortKey, SortDir } from "@/components/stock/StockTable";
 
 export default function Stock() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -21,42 +17,91 @@ export default function Stock() {
   const [search, setSearch] = useState("");
   const [filterCategoria, setFilterCategoria] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [sortKey, setSortKey] = useState<SortKey>("nombre");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [pulse, setPulse] = useState(false);
+
+  const fetchProducts = async () => {
+    const { data } = await supabase.from("products").select("*").order("nombre");
+    setProducts(data || []);
+    setLoading(false);
+    setLastUpdated(new Date());
+  };
 
   useEffect(() => {
-    supabase.from("products").select("*").order("nombre").then(({ data }) => {
-      setProducts(data || []);
-      setLoading(false);
-    });
+    fetchProducts();
+
+    // Realtime subscription
+    const channel = supabase
+      .channel("stock-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        setPulse(true);
+        fetchProducts();
+        setTimeout(() => setPulse(false), 1200);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const categorias = [...new Set(products.map(p => p.categoria))].sort();
+  // Sort handler
+  const handleSort = (key: SortKey) => {
+    if (key === sortKey) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  };
 
-  const filtered = products.filter(p => {
-    const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      p.categoria.toLowerCase().includes(search.toLowerCase());
-    const matchCat = filterCategoria === "all" || p.categoria === filterCategoria;
-    const isLow = p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo;
-    const matchStatus =
-      filterStatus === "all" ? true :
-      filterStatus === "low" ? isLow :
-      filterStatus === "ok" ? (!isLow && p.stock_minimo_activo) :
-      filterStatus === "noalert" ? !p.stock_minimo_activo : true;
-    return matchSearch && matchCat && matchStatus;
-  });
+  const categorias = useMemo(() => [...new Set(products.map(p => p.categoria))].sort(), [products]);
 
-  // Totals by category
-  const categorySummaries: CategorySummary[] = categorias.map(cat => {
-    const catProducts = products.filter(p => p.categoria === cat);
-    return {
-      categoria: cat,
-      total: catProducts.reduce((s, p) => s + Number(p.stock_actual), 0),
-      count: catProducts.length,
-      lowCount: catProducts.filter(p => p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo).length,
-    };
-  });
+  const filtered = useMemo(() => {
+    const result = products.filter(p => {
+      const matchSearch =
+        p.nombre.toLowerCase().includes(search.toLowerCase()) ||
+        p.categoria.toLowerCase().includes(search.toLowerCase());
+      const matchCat = filterCategoria === "all" || p.categoria === filterCategoria;
+      const isLow = p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo;
+      const matchStatus =
+        filterStatus === "all" ? true :
+        filterStatus === "low" ? isLow :
+        filterStatus === "ok" ? (!isLow && p.stock_minimo_activo) :
+        filterStatus === "noalert" ? !p.stock_minimo_activo : true;
+      return matchSearch && matchCat && matchStatus;
+    });
 
-  const grandTotal = products.reduce((s, p) => s + Number(p.stock_actual), 0);
-  const lowCount = products.filter(p => p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo).length;
+    return result.sort((a, b) => {
+      let va: any = a[sortKey] ?? "";
+      let vb: any = b[sortKey] ?? "";
+      if (typeof va === "string") va = va.toLowerCase();
+      if (typeof vb === "string") vb = vb.toLowerCase();
+      return sortDir === "asc" ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
+    });
+  }, [products, search, filterCategoria, filterStatus, sortKey, sortDir]);
+
+  // Category summaries
+  const categorySummaries: CategorySummary[] = useMemo(() =>
+    categorias.map(cat => {
+      const catProducts = products.filter(p => p.categoria === cat);
+      return {
+        categoria: cat,
+        total: catProducts.reduce((s, p) => s + Number(p.stock_actual), 0),
+        count: catProducts.length,
+        lowCount: catProducts.filter(
+          p => p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo
+        ).length,
+      };
+    }),
+  [products, categorias]);
+
+  // Chart data (one row per category)
+  const chartData = useMemo(() =>
+    categorySummaries.map(s => {
+      const catProds = products.filter(p => p.categoria === s.categoria && p.stock_minimo_activo && p.stock_minimo !== null);
+      const totalMin = catProds.reduce((acc, p) => acc + Number(p.stock_minimo), 0);
+      return { categoria: s.categoria, stock: s.total, minimo: totalMin, porcentaje: totalMin > 0 ? (s.total / totalMin) * 100 : 100 };
+    }),
+  [categorySummaries, products]);
+
+  const grandTotal = useMemo(() => products.reduce((s, p) => s + Number(p.stock_actual), 0), [products]);
 
   const handleExportCSV = () => {
     const header = "nombre,categoria,unidad,stock_actual,stock_minimo,alerta_activa";
@@ -65,56 +110,60 @@ export default function Stock() {
     );
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `stock-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    const a = document.createElement("a"); a.href = url;
+    a.download = `stock-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
+  const hasFilters = search || filterCategoria !== "all" || filterStatus !== "all";
+
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Stock Consolidado</h1>
-          <p className="text-sm text-muted-foreground">{products.length} productos · {grandTotal.toLocaleString("es-AR")} unidades totales</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Stock Consolidado</h1>
+            {pulse && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-primary font-medium animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />
+                Actualizando
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {products.length} productos · {grandTotal.toLocaleString("es-AR")} unidades ·{" "}
+            <span className="text-[11px]">
+              Actualizado {lastUpdated.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExportCSV}>
-          <Download className="w-4 h-4 mr-1" /> Exportar CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={fetchProducts}>
+            <RefreshCw className="w-3.5 h-3.5 mr-1" /> Actualizar
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportCSV}>
+            <Download className="w-3.5 h-3.5 mr-1" /> CSV
+          </Button>
+        </div>
       </div>
 
-      {/* Category summary cards */}
+      {/* Category cards */}
       {!loading && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-          <Card className="col-span-2 sm:col-span-1 border-primary/20 bg-primary/5">
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Total general</p>
-              <p className="text-2xl font-bold text-primary mt-1">{grandTotal.toLocaleString("es-AR")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{products.length} productos</p>
-            </CardContent>
-          </Card>
-          {categorySummaries.map(s => (
-            <Card
-              key={s.categoria}
-              className={`cursor-pointer transition-colors ${filterCategoria === s.categoria ? "border-primary ring-1 ring-primary" : ""} ${s.lowCount > 0 ? "border-destructive/30" : ""}`}
-              onClick={() => setFilterCategoria(prev => prev === s.categoria ? "all" : s.categoria)}
-            >
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium truncate">{s.categoria}</p>
-                <p className="text-xl font-bold mt-1">{s.total.toLocaleString("es-AR")}</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <p className="text-xs text-muted-foreground">{s.count} productos</p>
-                  {s.lowCount > 0 && (
-                    <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">{s.lowCount} bajo</Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <StockCategoryCards
+          summaries={categorySummaries}
+          grandTotal={grandTotal}
+          totalProducts={products.length}
+          filterCategoria={filterCategoria}
+          onSelectCategoria={(cat) => setFilterCategoria(prev => prev === cat ? "all" : cat)}
+        />
       )}
 
+      {/* Chart */}
+      {!loading && chartData.length > 0 && <StockChart data={chartData} />}
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -134,69 +183,33 @@ export default function Stock() {
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Estado" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="low">Bajo mínimo</SelectItem>
             <SelectItem value="ok">OK</SelectItem>
             <SelectItem value="noalert">Sin alerta</SelectItem>
           </SelectContent>
         </Select>
-        {(search || filterCategoria !== "all" || filterStatus !== "all") && (
-          <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setFilterCategoria("all"); setFilterStatus("all"); }}>
-            Limpiar filtros
+        {hasFilters && (
+          <Button variant="ghost" size="sm" className="text-muted-foreground"
+            onClick={() => { setSearch(""); setFilterCategoria("all"); setFilterStatus("all"); }}>
+            Limpiar
           </Button>
         )}
+        <span className="text-xs text-muted-foreground ml-auto">
+          {filtered.length} de {products.length} productos
+        </span>
       </div>
 
       {/* Table */}
       <Card>
         <CardContent className="p-0">
-          {loading ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">Cargando stock...</div>
-          ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">No hay productos que coincidan.</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Producto</TableHead>
-                  <TableHead>Categoría</TableHead>
-                  <TableHead>Unidad</TableHead>
-                  <TableHead className="text-right">Stock Actual</TableHead>
-                  <TableHead className="text-right">Stock Mínimo</TableHead>
-                  <TableHead className="text-center">Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(p => {
-                  const isLow = p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo;
-                  return (
-                    <TableRow key={p.id} className={isLow ? "bg-destructive/5" : ""}>
-                      <TableCell className="font-medium">{p.nombre}</TableCell>
-                      <TableCell><Badge variant="secondary">{p.categoria}</Badge></TableCell>
-                      <TableCell className="text-muted-foreground">{p.unidad}</TableCell>
-                      <TableCell className={`text-right font-mono font-semibold ${isLow ? "text-destructive" : ""}`}>
-                        {Number(p.stock_actual).toLocaleString("es-AR")}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-muted-foreground">
-                        {p.stock_minimo !== null ? Number(p.stock_minimo).toLocaleString("es-AR") : "—"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {!p.stock_minimo_activo ? (
-                          <Badge className="text-xs bg-muted text-muted-foreground border-0">Sin alerta</Badge>
-                        ) : isLow ? (
-                          <Badge variant="destructive" className="text-xs gap-1">
-                            <AlertTriangle className="w-3 h-3" /> Bajo mínimo
-                          </Badge>
-                        ) : (
-                          <Badge className="text-xs bg-primary/10 text-primary border-0">OK</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
+          <StockTable
+            products={filtered}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            loading={loading}
+          />
         </CardContent>
       </Card>
     </div>
