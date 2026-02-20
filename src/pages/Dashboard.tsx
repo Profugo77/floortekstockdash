@@ -37,7 +37,7 @@ export default function Dashboard() {
       const movements = movementsRes.data || [];
 
       const below = products.filter(
-        p => p.stock_minimo !== null && p.stock_actual <= p.stock_minimo
+        p => p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo
       );
 
       const entradas = movements.filter(m => m.tipo === "entrada").reduce((s, m) => s + Number(m.cantidad), 0);
