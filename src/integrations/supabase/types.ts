@@ -63,6 +63,7 @@ export type Database = {
           nombre: string
           stock_actual: number
           stock_minimo: number | null
+          stock_minimo_activo: boolean
           unidad: string
           updated_at: string
         }
@@ -73,6 +74,7 @@ export type Database = {
           nombre: string
           stock_actual?: number
           stock_minimo?: number | null
+          stock_minimo_activo?: boolean
           unidad?: string
           updated_at?: string
         }
@@ -83,6 +85,7 @@ export type Database = {
           nombre?: string
           stock_actual?: number
           stock_minimo?: number | null
+          stock_minimo_activo?: boolean
           unidad?: string
           updated_at?: string
         }
