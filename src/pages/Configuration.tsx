@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, UserCog, Upload, Download, FileSpreadsheet } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, UserCog, Upload, Download, FileSpreadsheet, Trash2 } from "lucide-react";
 
 const CATEGORIAS = ["SPC", "Porcelanato", "Adhesivos", "Zócalos", "Otros"];
 const UNIDADES = ["m2", "cajas", "unidades", "kg", "litros"];
@@ -27,6 +28,8 @@ export default function Configuration() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState({ email: "", password: "", full_name: "", role: "user" });
   const [saving, setSaving] = useState(false);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const fetchProfiles = async () => {
     const { data } = await supabase.from("profiles").select("*").order("created_at");
@@ -94,6 +97,20 @@ export default function Configuration() {
     }
     toast({ title: `Catálogo importado: ${ok} producto${ok !== 1 ? "s" : ""} cargado${ok !== 1 ? "s" : ""}${failed > 0 ? `, ${failed} errores` : ""}` });
     if (fileRef.current) fileRef.current.value = "";
+    fetchProfiles();
+  };
+
+  // ── Borrar todos los productos ────────────────────────────
+  const handleDeleteAllProducts = async () => {
+    setDeletingAll(true);
+    const { error } = await supabase.from("products").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (error) {
+      toast({ title: "Error al borrar productos", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Todos los productos fueron eliminados" });
+    }
+    setDeletingAll(false);
+    setDeleteAllOpen(false);
   };
 
   // ── Usuarios ───────────────────────────────────────────────
@@ -172,6 +189,9 @@ export default function Configuration() {
             <Button size="sm" onClick={() => fileRef.current?.click()}>
               <Upload className="w-4 h-4 mr-1.5" /> Importar catálogo CSV
             </Button>
+            <Button variant="destructive" size="sm" onClick={() => setDeleteAllOpen(true)}>
+              <Trash2 className="w-4 h-4 mr-1.5" /> Borrar todos los productos
+            </Button>
             <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleImportCatalogo} />
           </div>
           <p className="text-xs text-muted-foreground mt-3">
@@ -233,6 +253,28 @@ export default function Configuration() {
           )}
         </CardContent>
       </Card>
+
+      {/* Confirmar borrar todos los productos */}
+      <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Borrar todos los productos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará permanentemente todos los productos y sus movimientos asociados. No se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAllProducts}
+              disabled={deletingAll}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deletingAll ? "Borrando..." : "Sí, borrar todo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog nuevo usuario */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
