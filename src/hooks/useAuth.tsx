@@ -7,7 +7,7 @@ interface AuthContextType {
   session: Session | null;
   isAdmin: boolean;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; pendingApproval?: boolean }>;
   signOut: () => Promise<void>;
 }
 
@@ -27,6 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq("role", "admin")
       .maybeSingle();
     setIsAdmin(!!data);
+  };
+
+  const checkApproved = async (userId: string): Promise<boolean> => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("status")
+      .eq("id", userId)
+      .maybeSingle();
+    return data?.status === "approved";
   };
 
   useEffect(() => {
@@ -53,8 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error };
+    if (data.user) {
+      const approved = await checkApproved(data.user.id);
+      if (!approved) {
+        await supabase.auth.signOut();
+        return { error: null, pendingApproval: true };
+      }
+    }
+    return { error: null };
   };
 
   const signOut = async () => {

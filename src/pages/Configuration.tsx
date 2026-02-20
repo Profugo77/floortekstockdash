@@ -11,12 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, UserCog, Upload, Download, FileSpreadsheet, Trash2 } from "lucide-react";
+import { Plus, UserCog, Upload, Download, FileSpreadsheet, Trash2, CheckCircle, XCircle, Clock } from "lucide-react";
 
 const CATEGORIAS = ["SPC", "Porcelanato", "Adhesivos", "Zócalos", "Otros"];
 const UNIDADES = ["m2", "cajas", "unidades", "kg", "litros"];
 
-type Profile = { id: string; email: string; full_name: string | null; role: string; created_at: string };
+type Profile = { id: string; email: string; full_name: string | null; role: string; created_at: string; status: string };
 
 export default function Configuration() {
   const { isAdmin, user } = useAuth();
@@ -149,6 +149,18 @@ export default function Configuration() {
     fetchProfiles();
   };
 
+  const handleApprove = async (profileId: string) => {
+    await supabase.from("profiles").update({ status: "approved" }).eq("id", profileId);
+    toast({ title: "Usuario aprobado. Ya puede ingresar al sistema." });
+    fetchProfiles();
+  };
+
+  const handleReject = async (profileId: string) => {
+    await supabase.from("profiles").update({ status: "rejected" }).eq("id", profileId);
+    toast({ title: "Usuario rechazado.", variant: "destructive" });
+    fetchProfiles();
+  };
+
   if (!isAdmin) {
     return (
       <div className="space-y-4">
@@ -212,13 +224,14 @@ export default function Configuration() {
           {loading ? (
             <div className="p-6 text-center text-muted-foreground text-sm">Cargando usuarios...</div>
           ) : (
-            <Table>
+          <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead>Rol</TableHead>
-                  {isAdmin && <TableHead>Cambiar Rol</TableHead>}
+                  {isAdmin && <TableHead>Acciones</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -227,22 +240,58 @@ export default function Configuration() {
                     <TableCell className="font-medium">{p.full_name || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{p.email}</TableCell>
                     <TableCell>
+                      {p.status === "pending" && (
+                        <Badge variant="outline" className="gap-1 text-amber-600 border-amber-400 dark:text-amber-400 dark:border-amber-600">
+                          <Clock className="w-3 h-3" /> Pendiente
+                        </Badge>
+                      )}
+                      {p.status === "approved" && (
+                        <Badge variant="outline" className="gap-1 text-primary border-primary/60">
+                          <CheckCircle className="w-3 h-3" /> Aprobado
+                        </Badge>
+                      )}
+                      {p.status === "rejected" && (
+                        <Badge variant="outline" className="gap-1 text-destructive border-destructive/50">
+                          <XCircle className="w-3 h-3" /> Rechazado
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Badge variant={p.role === "admin" ? "default" : "secondary"}>{p.role}</Badge>
                     </TableCell>
                     {isAdmin && (
                       <TableCell>
-                        {p.id !== user?.id ? (
-                          <Select defaultValue={p.role} onValueChange={v => handleRoleChange(p.id, v)}>
-                            <SelectTrigger className="w-32 h-7 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="user">Usuario</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        ) : (
+                        {p.id === user?.id ? (
                           <span className="text-xs text-muted-foreground">(tú)</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {p.status === "pending" && (
+                              <>
+                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-primary border-primary/60 hover:bg-primary/10" onClick={() => handleApprove(p.id)}>
+                                  <CheckCircle className="w-3 h-3" /> Aprobar
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive border-destructive/50 hover:bg-destructive/10" onClick={() => handleReject(p.id)}>
+                                  <XCircle className="w-3 h-3" /> Rechazar
+                                </Button>
+                              </>
+                            )}
+                            {p.status === "approved" && (
+                              <Select defaultValue={p.role} onValueChange={v => handleRoleChange(p.id, v)}>
+                                <SelectTrigger className="w-32 h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="user">Usuario</SelectItem>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                            {p.status === "rejected" && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-primary border-primary/60 hover:bg-primary/10" onClick={() => handleApprove(p.id)}>
+                                <CheckCircle className="w-3 h-3" /> Aprobar
+                              </Button>
+                            )}
+                          </div>
                         )}
                       </TableCell>
                     )}

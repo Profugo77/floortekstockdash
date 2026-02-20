@@ -20,8 +20,16 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signIn(email, password);
+    const { error, pendingApproval } = await signIn(email, password);
     setLoading(false);
+    if (pendingApproval) {
+      toast({
+        title: "Cuenta pendiente de aprobación",
+        description: "Tu cuenta fue creada exitosamente. El administrador debe aprobarla antes de que puedas ingresar.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (error) {
       toast({ title: "Error al iniciar sesión", description: "Email o contraseña incorrectos.", variant: "destructive" });
     }
@@ -40,14 +48,8 @@ export default function LoginPage() {
       toast({ title: "Error al registrarse", description: error.message, variant: "destructive" });
       return;
     }
-    // Make first user admin
-    if (data.user) {
-      const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true });
-      if (count === 0) {
-        await supabase.from("user_roles").insert({ user_id: data.user.id, role: "admin" });
-      }
-    }
-    toast({ title: "Cuenta creada. Ahora podés iniciar sesión." });
+    // Set status = pending (auto via trigger), just notify
+    toast({ title: "Cuenta creada", description: "Tu solicitud fue enviada. El administrador debe aprobar tu acceso antes de poder ingresar." });
     setMode("login");
   };
 
