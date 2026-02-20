@@ -273,7 +273,7 @@ export default function Movements() {
 
       {/* New movement dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl w-full">
           <DialogHeader>
             <DialogTitle>Registrar Movimiento</DialogTitle>
           </DialogHeader>
