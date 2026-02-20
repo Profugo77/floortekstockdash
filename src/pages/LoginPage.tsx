@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,10 +10,8 @@ import { Package } from "lucide-react";
 export default function LoginPage() {
   const { signIn } = useAuth();
   const { toast } = useToast();
-  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -25,7 +22,7 @@ export default function LoginPage() {
     if (pendingApproval) {
       toast({
         title: "Cuenta pendiente de aprobación",
-        description: "Tu cuenta fue creada exitosamente. El administrador debe aprobarla antes de que puedas ingresar.",
+        description: "Contactá al administrador para que apruebe tu acceso.",
         variant: "destructive",
       });
       return;
@@ -33,24 +30,6 @@ export default function LoginPage() {
     if (error) {
       toast({ title: "Error al iniciar sesión", description: "Email o contraseña incorrectos.", variant: "destructive" });
     }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    });
-    setLoading(false);
-    if (error) {
-      toast({ title: "Error al registrarse", description: error.message, variant: "destructive" });
-      return;
-    }
-    // Set status = pending (auto via trigger), just notify
-    toast({ title: "Cuenta creada", description: "Tu solicitud fue enviada. El administrador debe aprobar tu acceso antes de poder ingresar." });
-    setMode("login");
   };
 
   return (
@@ -67,28 +46,11 @@ export default function LoginPage() {
 
         <Card className="border-0 shadow-2xl">
           <CardHeader className="pb-4">
-            <h2 className="text-lg font-semibold text-foreground">
-              {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {mode === "login" ? "Ingresá tus credenciales para continuar" : "Completá los datos para registrarte"}
-            </p>
+            <h2 className="text-lg font-semibold text-foreground">Iniciar sesión</h2>
+            <p className="text-sm text-muted-foreground">Ingresá tus credenciales para continuar</p>
           </CardHeader>
           <CardContent>
-            <form onSubmit={mode === "login" ? handleLogin : handleRegister} className="space-y-4">
-              {mode === "register" && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="fullName">Nombre completo</Label>
-                  <Input
-                    id="fullName"
-                    type="text"
-                    placeholder="Juan García"
-                    value={fullName}
-                    onChange={e => setFullName(e.target.value)}
-                    autoComplete="name"
-                  />
-                </div>
-              )}
+            <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -110,34 +72,14 @@ export default function LoginPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  autoComplete="current-password"
                   minLength={6}
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (mode === "login" ? "Ingresando..." : "Creando cuenta...") : (mode === "login" ? "Ingresar" : "Crear cuenta")}
+                {loading ? "Ingresando..." : "Ingresar"}
               </Button>
             </form>
-
-            <div className="mt-4 text-center">
-              {mode === "login" ? (
-                <button
-                  type="button"
-                  onClick={() => setMode("register")}
-                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
-                >
-                  ¿Primera vez? Crear cuenta
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setMode("login")}
-                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
-                >
-                  Ya tengo cuenta → Iniciar sesión
-                </button>
-              )}
-            </div>
           </CardContent>
         </Card>
 
