@@ -3,14 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Upload, Search, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload, Download, Search, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type Product = {
@@ -24,17 +25,28 @@ const UNIDADES = ["m2", "cajas", "unidades", "kg", "litros"];
 const emptyForm = { nombre: "", categoria: "SPC", unidad: "m2", stock_actual: 0, stock_minimo: "" as string | number };
 
 export default function Products() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Product CRUD dialog
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
+
+  // Delete dialog
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Stock adjustment dialog
+  const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
+  const [adjustValue, setAdjustValue] = useState<number | "">("");
+  const [adjustNotes, setAdjustNotes] = useState("");
+  const [adjustSaving, setAdjustSaving] = useState(false);
 
   const fetchProducts = async () => {
     const { data } = await supabase.from("products").select("*").order("nombre");
@@ -49,6 +61,7 @@ export default function Products() {
     p.categoria.toLowerCase().includes(search.toLowerCase())
   );
 
+  // ── Product CRUD ──────────────────────────────────────────
   const openCreate = () => {
     setEditing(null);
     setForm({ ...emptyForm });
@@ -71,26 +84,16 @@ export default function Products() {
       stock_actual: Number(form.stock_actual),
       stock_minimo: form.stock_minimo !== "" ? Number(form.stock_minimo) : null,
     };
-
     if (editing) {
       const { error } = await supabase.from("products").update(payload).eq("id", editing.id);
-      if (error) {
-        toast({ title: "Error al actualizar", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Producto actualizado" });
-        setDialogOpen(false);
-        fetchProducts();
-      }
+      if (error) toast({ title: "Error al actualizar", description: error.message, variant: "destructive" });
+      else { toast({ title: "Producto actualizado" }); setDialogOpen(false); fetchProducts(); }
     } else {
       const { error } = await supabase.from("products").insert(payload);
       if (error) {
         const msg = error.message.includes("unique") ? "Ya existe un producto con ese nombre." : error.message;
         toast({ title: "Error al crear", description: msg, variant: "destructive" });
-      } else {
-        toast({ title: "Producto creado" });
-        setDialogOpen(false);
-        fetchProducts();
-      }
+      } else { toast({ title: "Producto creado" }); setDialogOpen(false); fetchProducts(); }
     }
     setSaving(false);
   };
@@ -103,6 +106,52 @@ export default function Products() {
     setDeleteId(null);
   };
 
+  // ── Stock Adjustment ──────────────────────────────────────
+  const openAdjust = (p: Product) => {
+    setAdjustProduct(p);
+    setAdjustValue(p.stock_actual);
+    setAdjustNotes("");
+  };
+
+  const handleAdjust = async () => {
+    if (!adjustProduct || adjustValue === "") return;
+    const newStock = Number(adjustValue);
+    if (newStock < 0) return toast({ title: "El stock no puede ser negativo", variant: "destructive" });
+
+    setAdjustSaving(true);
+    const diff = newStock - adjustProduct.stock_actual;
+
+    // Insert an adjustment movement only if there's a difference
+    if (diff !== 0) {
+      const tipo = diff > 0 ? "entrada" : "salida";
+      const cantidad = Math.abs(diff);
+      const { error: movErr } = await supabase.from("movements").insert({
+        product_id: adjustProduct.id,
+        tipo,
+        cantidad,
+        observaciones: adjustNotes.trim() ? `Ajuste: ${adjustNotes.trim()}` : "Ajuste de inventario",
+        user_id: user!.id,
+      });
+      if (movErr) {
+        toast({ title: "Error al ajustar stock", description: movErr.message, variant: "destructive" });
+        setAdjustSaving(false);
+        return;
+      }
+    } else {
+      // Same value → just update notes if needed, no movement
+      toast({ title: "Sin cambios", description: "El stock ya tiene ese valor." });
+      setAdjustProduct(null);
+      setAdjustSaving(false);
+      return;
+    }
+
+    toast({ title: "Stock ajustado correctamente", description: `${adjustProduct.nombre}: ${adjustProduct.stock_actual} → ${newStock} ${adjustProduct.unidad}` });
+    setAdjustProduct(null);
+    setAdjustSaving(false);
+    fetchProducts();
+  };
+
+  // ── CSV Import ────────────────────────────────────────────
   const handleCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -112,16 +161,33 @@ export default function Products() {
     for (const line of lines) {
       const [nombre, categoria, unidad, stock_actual, stock_minimo] = line.split(",").map(s => s.trim().replace(/^"|"$/g, ""));
       if (!nombre) continue;
-      const { error } = await supabase.from("products").insert({
+      const { error } = await supabase.from("products").upsert({
         nombre, categoria: categoria || "Otros", unidad: unidad || "m2",
         stock_actual: Number(stock_actual) || 0,
         stock_minimo: stock_minimo ? Number(stock_minimo) : null,
-      });
+      }, { onConflict: "nombre" });
       error ? failed++ : ok++;
     }
     toast({ title: `CSV importado: ${ok} productos cargados${failed > 0 ? `, ${failed} errores` : ""}` });
     fetchProducts();
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  // ── CSV Export ────────────────────────────────────────────
+  const handleExportCSV = () => {
+    const header = "nombre,categoria,unidad,stock_actual,stock_minimo";
+    const rows = products.map(p =>
+      [p.nombre, p.categoria, p.unidad, p.stock_actual, p.stock_minimo ?? ""].join(",")
+    );
+    const csvContent = [header, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `floortek-stock-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "CSV exportado correctamente" });
   };
 
   return (
@@ -131,17 +197,22 @@ export default function Products() {
           <h1 className="text-2xl font-bold">Productos</h1>
           <p className="text-sm text-muted-foreground">{products.length} productos registrados</p>
         </div>
-        {isAdmin && (
-          <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-              <Upload className="w-4 h-4 mr-1" /> Importar CSV
-            </Button>
-            <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSV} />
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-1" /> Nuevo Producto
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleExportCSV}>
+            <Download className="w-4 h-4 mr-1" /> Exportar CSV
+          </Button>
+          {isAdmin && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+                <Upload className="w-4 h-4 mr-1" /> Importar CSV
+              </Button>
+              <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSV} />
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="w-4 h-4 mr-1" /> Nuevo Producto
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -169,7 +240,7 @@ export default function Products() {
                   <TableHead className="text-right">Stock Actual</TableHead>
                   <TableHead className="text-right">Stock Mínimo</TableHead>
                   <TableHead className="text-right">Estado</TableHead>
-                  {isAdmin && <TableHead />}
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -195,18 +266,23 @@ export default function Products() {
                           <Badge className="text-xs bg-primary/10 text-primary border-0">OK</Badge>
                         )}
                       </TableCell>
-                      {isAdmin && (
-                        <TableCell>
-                          <div className="flex justify-end gap-1">
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(p)}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(p.id)}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" title="Ajustar stock" onClick={() => openAdjust(p)}>
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                          </Button>
+                          {isAdmin && (
+                            <>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(p)}>
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(p.id)}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -257,6 +333,56 @@ export default function Products() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "Guardar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stock adjustment dialog */}
+      <Dialog open={!!adjustProduct} onOpenChange={open => !open && setAdjustProduct(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Ajuste de Stock</DialogTitle>
+          </DialogHeader>
+          {adjustProduct && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-md bg-muted/50 px-4 py-3 text-sm space-y-1">
+                <p className="font-medium">{adjustProduct.nombre}</p>
+                <p className="text-muted-foreground">
+                  Stock actual: <span className="font-mono font-semibold text-foreground">{Number(adjustProduct.stock_actual).toLocaleString("es-AR")} {adjustProduct.unidad}</span>
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nuevo stock real *</Label>
+                <Input
+                  type="number" min={0}
+                  value={adjustValue}
+                  onChange={e => setAdjustValue(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="Ingresá la cantidad real contada"
+                />
+                {adjustValue !== "" && adjustValue !== adjustProduct.stock_actual && (
+                  <p className="text-xs text-muted-foreground">
+                    Diferencia: <span className={Number(adjustValue) > adjustProduct.stock_actual ? "text-primary font-semibold" : "text-destructive font-semibold"}>
+                      {Number(adjustValue) > adjustProduct.stock_actual ? "+" : ""}{Number(adjustValue) - adjustProduct.stock_actual} {adjustProduct.unidad}
+                    </span>
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Motivo del ajuste</Label>
+                <Textarea
+                  value={adjustNotes}
+                  onChange={e => setAdjustNotes(e.target.value)}
+                  placeholder="Ej: Conteo físico, merma, diferencia de inventario..."
+                  rows={2}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustProduct(null)}>Cancelar</Button>
+            <Button onClick={handleAdjust} disabled={adjustSaving || adjustValue === ""}>
+              {adjustSaving ? "Ajustando..." : "Confirmar ajuste"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
