@@ -1,22 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, UserCog } from "lucide-react";
+import { Plus, UserCog, Upload, Download, FileSpreadsheet } from "lucide-react";
+
+const CATEGORIAS = ["SPC", "Porcelanato", "Adhesivos", "Zócalos", "Otros"];
+const UNIDADES = ["m2", "cajas", "unidades", "kg", "litros"];
 
 type Profile = { id: string; email: string; full_name: string | null; role: string; created_at: string };
 
 export default function Configuration() {
   const { isAdmin, user } = useAuth();
   const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -31,12 +36,72 @@ export default function Configuration() {
 
   useEffect(() => { fetchProfiles(); }, []);
 
+  // ── CSV Catálogo: Exportar ─────────────────────────────────
+  const handleExportCatalogo = async () => {
+    const { data } = await supabase.from("products").select("nombre,categoria,unidad,stock_minimo").order("nombre");
+    if (!data) return;
+    const header = "nombre,categoria,unidad,stock_minimo";
+    const rows = data.map(p => [p.nombre, p.categoria, p.unidad, p.stock_minimo ?? ""].join(","));
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `floortek-catalogo-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Catálogo exportado correctamente" });
+  };
+
+  // ── CSV Catálogo: Importar ─────────────────────────────────
+  const parseCSVLine = (line: string): string[] => {
+    const values: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (char === "," && !inQuotes) {
+        values.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+    return values;
+  };
+
+  const handleImportCatalogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").slice(1);
+    let ok = 0, failed = 0;
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const [nombre, categoria, unidad, stock_minimo] = parseCSVLine(line);
+      if (!nombre) continue;
+      const { error } = await supabase.from("products").upsert({
+        nombre: nombre.trim(),
+        categoria: CATEGORIAS.includes(categoria?.trim()) ? categoria.trim() : "Otros",
+        unidad: UNIDADES.includes(unidad?.trim()) ? unidad.trim() : "m2",
+        stock_minimo: stock_minimo?.trim() ? Number(stock_minimo.trim().replace(",", ".")) : null,
+      }, { onConflict: "nombre" });
+      if (error) { failed++; console.error(`Error importando "${nombre}":`, error.message); }
+      else ok++;
+    }
+    toast({ title: `Catálogo importado: ${ok} producto${ok !== 1 ? "s" : ""} cargado${ok !== 1 ? "s" : ""}${failed > 0 ? `, ${failed} errores` : ""}` });
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  // ── Usuarios ───────────────────────────────────────────────
   const handleCreateUser = async () => {
     if (!newUser.email || !newUser.password) {
       return toast({ title: "Email y contraseña son requeridos", variant: "destructive" });
     }
     setSaving(true);
-    // Sign up user
     const { data, error } = await supabase.auth.signUp({
       email: newUser.email,
       password: newUser.password,
@@ -47,7 +112,6 @@ export default function Configuration() {
       setSaving(false);
       return;
     }
-    // Assign role if admin
     if (data.user && newUser.role === "admin") {
       await supabase.from("user_roles").insert({ user_id: data.user.id, role: "admin" });
     }
@@ -84,19 +148,45 @@ export default function Configuration() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Configuración</h1>
-          <p className="text-sm text-muted-foreground">Gestión de usuarios del sistema</p>
-        </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-1" /> Nuevo Usuario
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold">Configuración</h1>
+        <p className="text-sm text-muted-foreground">Gestión de usuarios y catálogo de productos</p>
       </div>
 
+      {/* Catálogo de Productos */}
       <Card>
         <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4" />
+            Catálogo de Productos
+          </CardTitle>
+          <CardDescription>
+            Importá o exportá el listado de productos (nombre, categoría, unidad y stock mínimo). El stock actual no se modifica al importar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-3 flex-wrap">
+            <Button variant="outline" size="sm" onClick={handleExportCatalogo}>
+              <Download className="w-4 h-4 mr-1.5" /> Exportar catálogo CSV
+            </Button>
+            <Button size="sm" onClick={() => fileRef.current?.click()}>
+              <Upload className="w-4 h-4 mr-1.5" /> Importar catálogo CSV
+            </Button>
+            <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleImportCatalogo} />
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Formato del CSV: <code className="bg-muted px-1 py-0.5 rounded text-xs">nombre,categoria,unidad,stock_minimo</code>
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Usuarios */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle className="text-base">Usuarios del sistema</CardTitle>
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-1" /> Nuevo Usuario
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -144,6 +234,7 @@ export default function Configuration() {
         </CardContent>
       </Card>
 
+      {/* Dialog nuevo usuario */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>

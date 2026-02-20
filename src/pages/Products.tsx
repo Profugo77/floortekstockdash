@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Upload, Download, Search, AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Search, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type Product = {
@@ -27,7 +27,7 @@ const emptyForm = { nombre: "", categoria: "SPC", unidad: "m2", stock_actual: 0,
 export default function Products() {
   const { isAdmin, user } = useAuth();
   const { toast } = useToast();
-  const fileRef = useRef<HTMLInputElement>(null);
+
 
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
@@ -151,54 +151,8 @@ export default function Products() {
     fetchProducts();
   };
 
-  // ── CSV Import ────────────────────────────────────────────
-  const parseCSVLine = (line: string): string[] => {
-    const values: string[] = [];
-    let current = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
-        else inQuotes = !inQuotes;
-      } else if (char === "," && !inQuotes) {
-        values.push(current.trim());
-        current = "";
-      } else {
-        current += char;
-      }
-    }
-    values.push(current.trim());
-    return values;
-  };
 
-  const handleCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    // Normalize line endings (\r\n → \n) and split
-    const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").slice(1);
-    let ok = 0, failed = 0;
-    const errors: string[] = [];
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const [nombre, categoria, unidad, stock_actual, stock_minimo] = parseCSVLine(line);
-      if (!nombre) continue;
-      const { error } = await supabase.from("products").upsert({
-        nombre: nombre.trim(),
-        categoria: categoria?.trim() || "Otros",
-        unidad: unidad?.trim() || "m2",
-        stock_actual: Number(stock_actual?.replace(",", ".")) || 0,
-        stock_minimo: stock_minimo?.trim() ? Number(stock_minimo.trim().replace(",", ".")) : null,
-      }, { onConflict: "nombre" });
-      if (error) { failed++; errors.push(`${nombre}: ${error.message}`); }
-      else ok++;
-    }
-    if (errors.length > 0) console.error("CSV import errors:", errors);
-    toast({ title: `CSV importado: ${ok} producto${ok !== 1 ? "s" : ""} cargado${ok !== 1 ? "s" : ""}${failed > 0 ? `, ${failed} errores` : ""}` });
-    fetchProducts();
-    if (fileRef.current) fileRef.current.value = "";
-  };
+  // ── CSV Export (stock actual) ─────────────────────────────
 
   // ── CSV Export ────────────────────────────────────────────
   const handleExportCSV = () => {
@@ -230,10 +184,6 @@ export default function Products() {
           </Button>
           {isAdmin && (
             <>
-              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-1" /> Importar CSV
-              </Button>
-              <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSV} />
               <Button size="sm" onClick={openCreate}>
                 <Plus className="w-4 h-4 mr-1" /> Nuevo Producto
               </Button>
