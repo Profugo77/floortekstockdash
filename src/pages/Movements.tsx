@@ -18,9 +18,10 @@ import VoiceCard from "@/components/VoiceCard";
 type Product = { id: string; nombre: string; stock_actual: number; unidad: string };
 type Movement = {
   id: string; tipo: string; cantidad: number; fecha: string;
-  observaciones: string | null; created_at: string;
+  observaciones: string | null; created_at: string; user_id: string;
   products: { nombre: string; unidad: string } | null;
 };
+type ProfileMap = Record<string, { full_name: string | null; email: string }>;
 
 const emptyForm = { product_id: "", tipo: "entrada" as "entrada" | "salida", cantidad: 1, fecha: format(new Date(), "yyyy-MM-dd"), observaciones: "" };
 
@@ -122,14 +123,19 @@ export default function Movements() {
   const [filterProduct, setFilterProduct] = useState("all");
   const [filterDate, setFilterDate] = useState("");
   const [showVoice, setShowVoice] = useState(false);
+  const [profileMap, setProfileMap] = useState<ProfileMap>({});
 
   const fetchData = useCallback(async () => {
-    const [productsRes, movementsRes] = await Promise.all([
+    const [productsRes, movementsRes, profilesRes] = await Promise.all([
       supabase.from("products").select("id, nombre, stock_actual, unidad").order("nombre"),
-      supabase.from("movements").select("id, tipo, cantidad, fecha, observaciones, created_at, products(nombre, unidad)").order("created_at", { ascending: false }).limit(200),
+      supabase.from("movements").select("id, tipo, cantidad, fecha, observaciones, created_at, user_id, products(nombre, unidad)").order("created_at", { ascending: false }).limit(200),
+      supabase.from("profiles").select("id, full_name, email"),
     ]);
     setProducts(productsRes.data || []);
     setMovements((movementsRes.data as Movement[]) || []);
+    const map: ProfileMap = {};
+    for (const p of (profilesRes.data || [])) { map[p.id] = { full_name: p.full_name, email: p.email }; }
+    setProfileMap(map);
     setLoading(false);
   }, []);
 
@@ -228,31 +234,37 @@ export default function Movements() {
                   <TableHead>Producto</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead className="text-right">Cantidad</TableHead>
+                  <TableHead>Usuario</TableHead>
                   <TableHead>Observaciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map(m => (
-                  <TableRow key={m.id}>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{m.fecha}</TableCell>
-                    <TableCell className="font-medium">{m.products?.nombre ?? "—"}</TableCell>
-                    <TableCell>
-                      {m.tipo === "entrada" ? (
-                        <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800 gap-1">
-                          <TrendingUp className="w-3 h-3" /> Entrada
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 gap-1">
-                          <TrendingDown className="w-3 h-3" /> Salida
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className={`text-right font-mono font-semibold ${m.tipo === "entrada" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                      {m.tipo === "entrada" ? "+" : "-"}{Number(m.cantidad).toLocaleString("es-AR")} {m.products?.unidad}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{m.observaciones || "—"}</TableCell>
-                  </TableRow>
-                ))}
+                {filtered.map(m => {
+                  const profile = profileMap[m.user_id];
+                  const userName = profile?.full_name || profile?.email || "—";
+                  return (
+                    <TableRow key={m.id}>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{m.fecha}</TableCell>
+                      <TableCell className="font-medium">{m.products?.nombre ?? "—"}</TableCell>
+                      <TableCell>
+                        {m.tipo === "entrada" ? (
+                          <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800 gap-1">
+                            <TrendingUp className="w-3 h-3" /> Entrada
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 gap-1">
+                            <TrendingDown className="w-3 h-3" /> Salida
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className={`text-right font-mono font-semibold ${m.tipo === "entrada" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                        {m.tipo === "entrada" ? "+" : "-"}{Number(m.cantidad).toLocaleString("es-AR")} {m.products?.unidad}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{userName}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{m.observaciones || "—"}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

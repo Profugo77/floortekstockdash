@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -16,7 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 type Product = {
   id: string; nombre: string; categoria: string; unidad: string;
-  stock_actual: number; stock_minimo: number | null; created_at: string;
+  stock_actual: number; stock_minimo: number | null; stock_minimo_activo: boolean; created_at: string;
 };
 
 const CATEGORIAS = ["SPC", "Porcelanato", "Adhesivos", "Zócalos", "Otros"];
@@ -152,6 +153,13 @@ export default function Products() {
   };
 
 
+  // ── Toggle stock mínimo activo ────────────────────────────
+  const handleToggleStockMinimo = async (p: Product) => {
+    const { error } = await supabase.from("products").update({ stock_minimo_activo: !p.stock_minimo_activo }).eq("id", p.id);
+    if (error) toast({ title: "Error al actualizar", description: error.message, variant: "destructive" });
+    else fetchProducts();
+  };
+
   // ── CSV Export (stock actual) ─────────────────────────────
 
   // ── CSV Export ────────────────────────────────────────────
@@ -216,13 +224,14 @@ export default function Products() {
                   <TableHead>Unidad</TableHead>
                   <TableHead className="text-right">Stock Actual</TableHead>
                   <TableHead className="text-right">Stock Mínimo</TableHead>
+                  <TableHead className="text-center">Alertas</TableHead>
                   <TableHead className="text-right">Estado</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map(p => {
-                  const isLow = p.stock_minimo !== null && p.stock_actual <= p.stock_minimo;
+                  const isLow = p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo;
                   return (
                     <TableRow key={p.id} className={isLow ? "bg-destructive/5" : ""}>
                       <TableCell className="font-medium">{p.nombre}</TableCell>
@@ -234,8 +243,18 @@ export default function Products() {
                       <TableCell className="text-right text-muted-foreground font-mono">
                         {p.stock_minimo !== null ? Number(p.stock_minimo).toLocaleString("es-AR") : "—"}
                       </TableCell>
+                      <TableCell className="text-center">
+                        <Switch
+                          checked={p.stock_minimo_activo}
+                          onCheckedChange={() => handleToggleStockMinimo(p)}
+                          disabled={!isAdmin}
+                          title={p.stock_minimo_activo ? "Desactivar alerta de stock mínimo" : "Activar alerta de stock mínimo"}
+                        />
+                      </TableCell>
                       <TableCell className="text-right">
-                        {isLow ? (
+                        {!p.stock_minimo_activo ? (
+                          <Badge className="text-xs bg-muted text-muted-foreground border-0">Sin alerta</Badge>
+                        ) : isLow ? (
                           <Badge variant="destructive" className="text-xs gap-1">
                             <AlertTriangle className="w-3 h-3" /> Bajo mínimo
                           </Badge>
