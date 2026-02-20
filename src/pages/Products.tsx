@@ -152,23 +152,50 @@ export default function Products() {
   };
 
   // ── CSV Import ────────────────────────────────────────────
+  const parseCSVLine = (line: string): string[] => {
+    const values: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (char === "," && !inQuotes) {
+        values.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+    return values;
+  };
+
   const handleCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const text = await file.text();
-    const lines = text.trim().split("\n").slice(1); // skip header
+    // Normalize line endings (\r\n → \n) and split
+    const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").slice(1);
     let ok = 0, failed = 0;
+    const errors: string[] = [];
     for (const line of lines) {
-      const [nombre, categoria, unidad, stock_actual, stock_minimo] = line.split(",").map(s => s.trim().replace(/^"|"$/g, ""));
+      if (!line.trim()) continue;
+      const [nombre, categoria, unidad, stock_actual, stock_minimo] = parseCSVLine(line);
       if (!nombre) continue;
       const { error } = await supabase.from("products").upsert({
-        nombre, categoria: categoria || "Otros", unidad: unidad || "m2",
-        stock_actual: Number(stock_actual) || 0,
-        stock_minimo: stock_minimo ? Number(stock_minimo) : null,
+        nombre: nombre.trim(),
+        categoria: categoria?.trim() || "Otros",
+        unidad: unidad?.trim() || "m2",
+        stock_actual: Number(stock_actual?.replace(",", ".")) || 0,
+        stock_minimo: stock_minimo?.trim() ? Number(stock_minimo.trim().replace(",", ".")) : null,
       }, { onConflict: "nombre" });
-      error ? failed++ : ok++;
+      if (error) { failed++; errors.push(`${nombre}: ${error.message}`); }
+      else ok++;
     }
-    toast({ title: `CSV importado: ${ok} productos cargados${failed > 0 ? `, ${failed} errores` : ""}` });
+    if (errors.length > 0) console.error("CSV import errors:", errors);
+    toast({ title: `CSV importado: ${ok} producto${ok !== 1 ? "s" : ""} cargado${ok !== 1 ? "s" : ""}${failed > 0 ? `, ${failed} errores` : ""}` });
     fetchProducts();
     if (fileRef.current) fileRef.current.value = "";
   };
