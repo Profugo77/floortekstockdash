@@ -190,13 +190,15 @@ export default function DailySummary() {
                     <TableCell>
                       <Badge className={m.tipo === "entrada"
                         ? "bg-primary/10 text-primary border-0"
-                        : "bg-destructive/10 text-destructive border-0"
+                        : m.tipo === "salida"
+                        ? "bg-destructive/10 text-destructive border-0"
+                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-0"
                       }>
-                        {m.tipo === "entrada" ? "↑ Entrada" : "↓ Salida"}
+                        {m.tipo === "entrada" ? "↑ Entrada" : m.tipo === "salida" ? "↓ Salida" : "⟳ Ajuste"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {m.tipo === "entrada" ? "+" : "-"}{Number(m.cantidad).toLocaleString("es-AR")}
+                      {m.tipo === "entrada" ? "+" : m.tipo === "salida" ? "-" : "="}{Number(m.cantidad).toLocaleString("es-AR")}
                     </TableCell>
                   </TableRow>
                 ))}
