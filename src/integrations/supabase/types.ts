@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      deleted_movements: {
+        Row: {
+          cantidad: number
+          deleted_at: string
+          deleted_by: string
+          fecha: string
+          id: string
+          observaciones: string | null
+          original_movement_id: string
+          original_user_id: string
+          product_id: string
+          product_name: string
+          tipo: string
+        }
+        Insert: {
+          cantidad: number
+          deleted_at?: string
+          deleted_by: string
+          fecha: string
+          id?: string
+          observaciones?: string | null
+          original_movement_id: string
+          original_user_id: string
+          product_id: string
+          product_name: string
+          tipo: string
+        }
+        Update: {
+          cantidad?: number
+          deleted_at?: string
+          deleted_by?: string
+          fecha?: string
+          id?: string
+          observaciones?: string | null
+          original_movement_id?: string
+          original_user_id?: string
+          product_id?: string
+          product_name?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       movements: {
         Row: {
           cantidad: number
