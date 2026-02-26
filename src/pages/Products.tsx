@@ -197,13 +197,9 @@ export default function Products() {
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
             <Download className="w-4 h-4 mr-1" /> Exportar CSV
           </Button>
-          {isAdmin && (
-            <>
-              <Button size="sm" onClick={openCreate}>
-                <Plus className="w-4 h-4 mr-1" /> Nuevo Producto
-              </Button>
-            </>
-          )}
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="w-4 h-4 mr-1" /> Nuevo Producto
+          </Button>
         </div>
       </div>
 
@@ -251,10 +247,9 @@ export default function Products() {
                         {p.stock_minimo !== null ? Number(p.stock_minimo).toLocaleString("es-AR") : "—"}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Switch
+                         <Switch
                           checked={p.stock_minimo_activo}
                           onCheckedChange={() => handleToggleStockMinimo(p)}
-                          disabled={!isAdmin}
                           title={p.stock_minimo_activo ? "Desactivar alerta de stock mínimo" : "Activar alerta de stock mínimo"}
                         />
                       </TableCell>
@@ -274,16 +269,12 @@ export default function Products() {
                           <Button size="icon" variant="ghost" className="h-7 w-7" title="Ajustar stock" onClick={() => openAdjust(p)}>
                             <SlidersHorizontal className="w-3.5 h-3.5" />
                           </Button>
-                          {isAdmin && (
-                            <>
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(p)}>
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(p.id)}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </>
-                          )}
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(p)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(p.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
