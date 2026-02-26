@@ -13,8 +13,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, UserCog, Upload, Download, FileSpreadsheet, Trash2, CheckCircle, XCircle, Clock } from "lucide-react";
 
-const CATEGORIAS = ["SPC", "Porcelanato", "Adhesivos", "Zócalos", "Otros"];
-const UNIDADES = ["m2", "cajas", "unidades", "kg", "litros"];
+const DEFAULT_CATEGORIAS = ["SPC", "Porcelanato", "Adhesivos", "Zócalos", "Accesorios", "Deck", "Luces Solares", "Jardin vertical", "Pallmann", "Pisos de ingenieria madera", "Productos de mantenimiento Floortek", "Vigas wpc", "Piso vinilico", "Revestimiento de interior", "Revestimiento exterior", "Cerco WPC", "Pedraflex", "PIso Melaminico", "Soft Stone", "Otros"];
+const DEFAULT_UNIDADES = ["m2", "cajas", "unidades", "kg", "litros"];
 
 type Profile = { id: string; email: string; full_name: string | null; role: string; created_at: string; status: string };
 

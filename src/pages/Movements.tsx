@@ -195,7 +195,10 @@ export default function Movements() {
     });
     setSaving(false);
     if (error) {
-      const msg = error.message.includes("Stock insuficiente") ? "Stock insuficiente para realizar la salida." : error.message;
+      const selectedProduct = products.find(p => p.id === form.product_id);
+      const msg = error.message.includes("Stock insuficiente") 
+        ? `Stock insuficiente. ${selectedProduct?.nombre ?? "El producto"} tiene ${selectedProduct ? Number(selectedProduct.stock_actual).toLocaleString("es-AR") + " " + selectedProduct.unidad : "0"} disponibles.` 
+        : error.message;
       toast({ title: "Error al registrar", description: msg, variant: "destructive" });
     } else {
       const labels: Record<string, string> = { entrada: "Entrada", salida: "Salida", ajuste: "Ajuste" };
