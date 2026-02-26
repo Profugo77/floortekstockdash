@@ -20,17 +20,24 @@ type Product = {
   stock_actual: number; stock_minimo: number | null; stock_minimo_activo: boolean; created_at: string;
 };
 
-const CATEGORIAS = ["SPC", "Porcelanato", "Adhesivos", "Zócalos", "Otros"];
-const UNIDADES = ["m2", "cajas", "unidades", "kg", "litros"];
+const DEFAULT_CATEGORIAS = ["SPC", "Porcelanato", "Adhesivos", "Zócalos", "Accesorios", "Deck", "Luces Solares", "Jardin vertical", "Pallmann", "Pisos de ingenieria madera", "Productos de mantenimiento Floortek", "Vigas wpc", "Piso vinilico", "Revestimiento de interior", "Revestimiento exterior", "Cerco WPC", "Pedraflex", "PIso Melaminico", "Soft Stone", "Otros"];
+const DEFAULT_UNIDADES = ["m2", "cajas", "unidades", "kg", "litros"];
 
 const emptyForm = { nombre: "", categoria: "SPC", unidad: "m2", stock_actual: 0, stock_minimo: "" as string | number };
+
+// Build dynamic category/unit lists from existing products + defaults
+function useDynamicLists(products: Product[]) {
+  const categorias = Array.from(new Set([...DEFAULT_CATEGORIAS, ...products.map(p => p.categoria)])).sort();
+  const unidades = Array.from(new Set([...DEFAULT_UNIDADES, ...products.map(p => p.unidad)])).sort();
+  return { categorias, unidades };
+}
 
 export default function Products() {
   const { isAdmin, user } = useAuth();
   const { toast } = useToast();
 
-
   const [products, setProducts] = useState<Product[]>([]);
+  const { categorias: CATEGORIAS, unidades: UNIDADES } = useDynamicLists(products);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
