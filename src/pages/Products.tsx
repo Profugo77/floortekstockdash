@@ -16,14 +16,14 @@ import { Plus, Pencil, Trash2, Download, Search, AlertTriangle, SlidersHorizonta
 import { useAuth } from "@/hooks/useAuth";
 
 type Product = {
-  id: string; nombre: string; categoria: string; unidad: string;
+  id: string; nombre: string; referencia: string | null; categoria: string; unidad: string;
   stock_actual: number; stock_minimo: number | null; stock_minimo_activo: boolean; created_at: string;
 };
 
 const DEFAULT_CATEGORIAS = ["SPC", "Porcelanato", "Adhesivos", "Zócalos", "Accesorios", "Deck", "Luces Solares", "Jardin vertical", "Pallmann", "Pisos de ingenieria madera", "Productos de mantenimiento Floortek", "Vigas wpc", "Piso vinilico", "Revestimiento de interior", "Revestimiento exterior", "Cerco WPC", "Pedraflex", "PIso Melaminico", "Soft Stone", "Otros"];
 const DEFAULT_UNIDADES = ["m2", "cajas", "unidades", "kg", "litros"];
 
-const emptyForm = { nombre: "", categoria: "SPC", unidad: "m2", stock_actual: 0, stock_minimo: "" as string | number };
+const emptyForm = { nombre: "", referencia: "", categoria: "SPC", unidad: "m2", stock_actual: 0, stock_minimo: "" as string | number };
 
 // Build dynamic category/unit lists from existing products + defaults
 function useDynamicLists(products: Product[]) {
@@ -64,10 +64,12 @@ export default function Products() {
 
   useEffect(() => { fetchProducts(); }, []);
 
-  const filtered = products.filter(p =>
-    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    p.categoria.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = products.filter(p => {
+    const q = search.toLowerCase();
+    return p.nombre.toLowerCase().includes(q) ||
+      p.categoria.toLowerCase().includes(q) ||
+      (p.referencia && p.referencia.toLowerCase().includes(q));
+  });
 
   // ── Product CRUD ──────────────────────────────────────────
   const openCreate = () => {
@@ -78,7 +80,7 @@ export default function Products() {
 
   const openEdit = (p: Product) => {
     setEditing(p);
-    setForm({ nombre: p.nombre, categoria: p.categoria, unidad: p.unidad, stock_actual: p.stock_actual, stock_minimo: p.stock_minimo ?? "" });
+    setForm({ nombre: p.nombre, referencia: p.referencia ?? "", categoria: p.categoria, unidad: p.unidad, stock_actual: p.stock_actual, stock_minimo: p.stock_minimo ?? "" });
     setDialogOpen(true);
   };
 
@@ -87,6 +89,7 @@ export default function Products() {
     setSaving(true);
     const payload = {
       nombre: form.nombre.trim(),
+      referencia: form.referencia.trim() || null,
       categoria: form.categoria,
       unidad: form.unidad,
       stock_actual: Number(form.stock_actual),
@@ -206,7 +209,7 @@ export default function Products() {
       {/* Search */}
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Buscar por nombre o categoría..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+        <Input placeholder="Buscar por nombre, referencia o categoría..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       {/* Table */}
@@ -223,6 +226,7 @@ export default function Products() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
+                  <TableHead>Referencia</TableHead>
                   <TableHead>Categoría</TableHead>
                   <TableHead>Unidad</TableHead>
                   <TableHead className="text-right">Stock Actual</TableHead>
@@ -238,6 +242,7 @@ export default function Products() {
                   return (
                     <TableRow key={p.id} className={isLow ? "bg-destructive/5" : ""}>
                       <TableCell className="font-medium">{p.nombre}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{p.referencia || "—"}</TableCell>
                       <TableCell><Badge variant="secondary">{p.categoria}</Badge></TableCell>
                       <TableCell className="text-muted-foreground">{p.unidad}</TableCell>
                       <TableCell className="text-right font-mono font-semibold">
@@ -296,6 +301,10 @@ export default function Products() {
             <div className="space-y-1.5">
               <Label>Nombre *</Label>
               <Input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Roble Gris SPC" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Referencia</Label>
+              <Input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))} placeholder="Código o nombre comercial" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
