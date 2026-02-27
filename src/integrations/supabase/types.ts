@@ -103,6 +103,7 @@ export type Database = {
           created_at: string
           id: string
           nombre: string
+          referencia: string | null
           stock_actual: number
           stock_minimo: number | null
           stock_minimo_activo: boolean
@@ -114,6 +115,7 @@ export type Database = {
           created_at?: string
           id?: string
           nombre: string
+          referencia?: string | null
           stock_actual?: number
           stock_minimo?: number | null
           stock_minimo_activo?: boolean
@@ -125,6 +127,7 @@ export type Database = {
           created_at?: string
           id?: string
           nombre?: string
+          referencia?: string | null
           stock_actual?: number
           stock_minimo?: number | null
           stock_minimo_activo?: boolean
