@@ -250,11 +250,37 @@ export default function Products() {
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
             <Download className="w-4 h-4 mr-1" /> Exportar CSV
           </Button>
+          <Button
+            size="sm"
+            variant={selectedCount > 0 ? "default" : "outline"}
+            onClick={handleGeneratePdf}
+            disabled={selectedCount === 0}
+          >
+            <FileText className="w-4 h-4 mr-1" /> Informe PDF{selectedCount > 0 ? ` (${selectedCount})` : ""}
+          </Button>
           <Button size="sm" onClick={openCreate}>
             <Plus className="w-4 h-4 mr-1" /> Nuevo Producto
           </Button>
         </div>
       </div>
+
+      {/* Selection bar */}
+      {selectedCount > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+          <p className="text-sm">
+            <span className="font-semibold text-primary">{selectedCount}</span>{" "}
+            <span className="text-muted-foreground">producto{selectedCount === 1 ? "" : "s"} seleccionado{selectedCount === 1 ? "" : "s"} para el informe</span>
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={clearSelection}>
+              <X className="w-3.5 h-3.5 mr-1" /> Limpiar
+            </Button>
+            <Button size="sm" onClick={handleGeneratePdf}>
+              <FileText className="w-3.5 h-3.5 mr-1" /> Generar PDF
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative max-w-sm">
