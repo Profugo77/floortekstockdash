@@ -277,6 +277,9 @@ export default function Stock() {
             sortDir={sortDir}
             onSort={handleSort}
             loading={loading}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAllFiltered}
           />
         </CardContent>
       </Card>
