@@ -301,6 +301,13 @@ export default function Products() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
+                      onCheckedChange={() => toggleSelectAllFiltered()}
+                      aria-label="Seleccionar todos"
+                    />
+                  </TableHead>
                   <TableHead>Nombre</TableHead>
                   <TableHead>Referencia</TableHead>
                   <TableHead>Categoría</TableHead>
@@ -315,8 +322,16 @@ export default function Products() {
               <TableBody>
                 {filtered.map(p => {
                   const isLow = p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo;
+                  const isSelected = selectedIds.has(p.id);
                   return (
-                    <TableRow key={p.id} className={isLow ? "bg-destructive/5" : ""}>
+                    <TableRow key={p.id} className={isSelected ? "bg-primary/5" : isLow ? "bg-destructive/5" : ""}>
+                      <TableCell className="w-10">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(p.id)}
+                          aria-label={`Seleccionar ${p.nombre}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{p.nombre}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">{p.referencia || "—"}</TableCell>
                       <TableCell><Badge variant="secondary">{p.categoria}</Badge></TableCell>
