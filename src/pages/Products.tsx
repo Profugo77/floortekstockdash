@@ -6,14 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Download, Search, AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Search, AlertTriangle, SlidersHorizontal, FileText, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { generateStockReportPdf } from "@/lib/stockReportPdf";
 
 type Product = {
   id: string; nombre: string; referencia: string | null; categoria: string; unidad: string;
