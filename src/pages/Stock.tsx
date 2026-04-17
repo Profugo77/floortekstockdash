@@ -4,8 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Download, RefreshCw } from "lucide-react";
+import { Search, Download, RefreshCw, FileText, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { generateStockReportPdf } from "@/lib/stockReportPdf";
 
 import StockCategoryCards, { CategorySummary } from "@/components/stock/StockCategoryCards";
 import StockChart from "@/components/stock/StockChart";
