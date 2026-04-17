@@ -185,15 +185,36 @@ export default function Stock() {
             </span>
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={fetchProducts}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" /> Actualizar
           </Button>
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
             <Download className="w-3.5 h-3.5 mr-1" /> CSV
           </Button>
+          <Button size="sm" onClick={handleGeneratePdf} disabled={selectedCount === 0}>
+            <FileText className="w-3.5 h-3.5 mr-1" /> PDF{selectedCount > 0 ? ` (${selectedCount})` : ""}
+          </Button>
         </div>
       </div>
+
+      {/* Selection bar */}
+      {selectedCount > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+          <p className="text-sm">
+            <span className="font-semibold text-primary">{selectedCount}</span>{" "}
+            <span className="text-muted-foreground">producto{selectedCount === 1 ? "" : "s"} seleccionado{selectedCount === 1 ? "" : "s"} para el informe</span>
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={clearSelection}>
+              <X className="w-3.5 h-3.5 mr-1" /> Limpiar
+            </Button>
+            <Button size="sm" onClick={handleGeneratePdf}>
+              <FileText className="w-3.5 h-3.5 mr-1" /> Generar PDF
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Category cards */}
       {!loading && (
