@@ -14,6 +14,7 @@ import StockChart from "@/components/stock/StockChart";
 import StockTable, { Product, SortKey, SortDir } from "@/components/stock/StockTable";
 
 export default function Stock() {
+  const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -23,6 +24,7 @@ export default function Stock() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [pulse, setPulse] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const fetchProducts = async () => {
     const { data } = await supabase.from("products").select("*").order("nombre");
