@@ -4,14 +4,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Download, RefreshCw } from "lucide-react";
+import { Search, Download, RefreshCw, FileText, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { generateStockReportPdf } from "@/lib/stockReportPdf";
 
 import StockCategoryCards, { CategorySummary } from "@/components/stock/StockCategoryCards";
 import StockChart from "@/components/stock/StockChart";
 import StockTable, { Product, SortKey, SortDir } from "@/components/stock/StockTable";
 
 export default function Stock() {
+  const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -21,6 +24,7 @@ export default function Stock() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [pulse, setPulse] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const fetchProducts = async () => {
     const { data } = await supabase.from("products").select("*").order("nombre");
@@ -117,6 +121,49 @@ export default function Stock() {
 
   const hasFilters = search || filterCategoria !== "all" || filterStatus !== "all";
 
+  // Selection
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedIds(prev => {
+      const allFilteredSelected = filtered.length > 0 && filtered.every(p => prev.has(p.id));
+      const next = new Set(prev);
+      if (allFilteredSelected) filtered.forEach(p => next.delete(p.id));
+      else filtered.forEach(p => next.add(p.id));
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleGeneratePdf = () => {
+    const selected = products.filter(p => selectedIds.has(p.id));
+    if (selected.length === 0) {
+      toast({ title: "Seleccioná al menos un producto", variant: "destructive" });
+      return;
+    }
+    generateStockReportPdf(
+      selected
+        .sort((a, b) => a.nombre.localeCompare(b.nombre))
+        .map(p => ({
+          nombre: p.nombre,
+          referencia: (p as any).referencia ?? null,
+          categoria: p.categoria,
+          unidad: p.unidad,
+          stock_actual: Number(p.stock_actual),
+        }))
+    );
+    toast({ title: "Informe PDF generado", description: `${selected.length} productos incluidos.` });
+  };
+
+  const selectedCount = selectedIds.size;
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -138,15 +185,36 @@ export default function Stock() {
             </span>
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={fetchProducts}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" /> Actualizar
           </Button>
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
             <Download className="w-3.5 h-3.5 mr-1" /> CSV
           </Button>
+          <Button size="sm" onClick={handleGeneratePdf} disabled={selectedCount === 0}>
+            <FileText className="w-3.5 h-3.5 mr-1" /> PDF{selectedCount > 0 ? ` (${selectedCount})` : ""}
+          </Button>
         </div>
       </div>
+
+      {/* Selection bar */}
+      {selectedCount > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+          <p className="text-sm">
+            <span className="font-semibold text-primary">{selectedCount}</span>{" "}
+            <span className="text-muted-foreground">producto{selectedCount === 1 ? "" : "s"} seleccionado{selectedCount === 1 ? "" : "s"} para el informe</span>
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={clearSelection}>
+              <X className="w-3.5 h-3.5 mr-1" /> Limpiar
+            </Button>
+            <Button size="sm" onClick={handleGeneratePdf}>
+              <FileText className="w-3.5 h-3.5 mr-1" /> Generar PDF
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Category cards */}
       {!loading && (
@@ -209,6 +277,9 @@ export default function Stock() {
             sortDir={sortDir}
             onSort={handleSort}
             loading={loading}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAllFiltered}
           />
         </CardContent>
       </Card>
