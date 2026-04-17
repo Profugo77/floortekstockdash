@@ -102,6 +102,34 @@ export default function LoginPage() {
             <p className="text-sm text-muted-foreground">Ingresá tus credenciales para continuar</p>
           </CardHeader>
           <CardContent>
+            {hasQuickAccess && (
+              <div className="mb-4 space-y-2">
+                <Button
+                  type="button"
+                  onClick={handleQuickAccess}
+                  disabled={quickLoading || loading}
+                  className="w-full"
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  {quickLoading ? "Ingresando..." : "Acceso rápido admin"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={handleClearQuickAccess}
+                  className="w-full text-xs text-muted-foreground hover:text-destructive flex items-center justify-center gap-1 py-1"
+                >
+                  <X className="w-3 h-3" /> Eliminar acceso rápido
+                </button>
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="bg-card px-2 text-muted-foreground">o ingresá manualmente</span>
+                  </div>
+                </div>
+              </div>
+            )}
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>
