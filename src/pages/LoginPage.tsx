@@ -156,7 +156,7 @@ export default function LoginPage() {
                   minLength={6}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading || quickLoading}>
                 {loading ? "Ingresando..." : "Ingresar"}
               </Button>
             </form>
