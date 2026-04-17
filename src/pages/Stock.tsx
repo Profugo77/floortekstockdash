@@ -121,6 +121,49 @@ export default function Stock() {
 
   const hasFilters = search || filterCategoria !== "all" || filterStatus !== "all";
 
+  // Selection
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedIds(prev => {
+      const allFilteredSelected = filtered.length > 0 && filtered.every(p => prev.has(p.id));
+      const next = new Set(prev);
+      if (allFilteredSelected) filtered.forEach(p => next.delete(p.id));
+      else filtered.forEach(p => next.add(p.id));
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleGeneratePdf = () => {
+    const selected = products.filter(p => selectedIds.has(p.id));
+    if (selected.length === 0) {
+      toast({ title: "Seleccioná al menos un producto", variant: "destructive" });
+      return;
+    }
+    generateStockReportPdf(
+      selected
+        .sort((a, b) => a.nombre.localeCompare(b.nombre))
+        .map(p => ({
+          nombre: p.nombre,
+          referencia: (p as any).referencia ?? null,
+          categoria: p.categoria,
+          unidad: p.unidad,
+          stock_actual: Number(p.stock_actual),
+        }))
+    );
+    toast({ title: "Informe PDF generado", description: `${selected.length} productos incluidos.` });
+  };
+
+  const selectedCount = selectedIds.size;
+
   return (
     <div className="space-y-5">
       {/* Header */}
