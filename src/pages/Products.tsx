@@ -58,6 +58,9 @@ export default function Products() {
   const [adjustNotes, setAdjustNotes] = useState("");
   const [adjustSaving, setAdjustSaving] = useState(false);
 
+  // Selection for PDF report
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const fetchProducts = async () => {
     const { data } = await supabase.from("products").select("*").order("nombre");
     setProducts(data || []);
