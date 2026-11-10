@@ -16,6 +16,7 @@ import { Plus, Mic, Search, X, TrendingUp, TrendingDown, RefreshCw, Trash2, Hist
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import VoiceCard from "@/components/VoiceCard";
+import { fetchAllPages } from "@/lib/fetch-all-pages";
 
 type Product = { id: string; nombre: string; stock_actual: number; unidad: string };
 type Movement = {
@@ -159,20 +160,25 @@ export default function Movements() {
   const [deleting, setDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
+    try {
     const [productsRes, movementsRes, profilesRes, deletedRes] = await Promise.all([
       supabase.from("products").select("id, nombre, stock_actual, unidad").order("nombre"),
-      supabase.from("movements").select("id, product_id, tipo, cantidad, fecha, observaciones, created_at, user_id, products(nombre, unidad)").order("created_at", { ascending: false }).limit(200),
+      fetchAllPages<Movement>((from, to) => supabase.from("movements").select("id, product_id, tipo, cantidad, fecha, observaciones, created_at, user_id, products(nombre, unidad)").order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, to)),
       supabase.from("profiles").select("id, full_name, email"),
-      supabase.from("deleted_movements").select("*").order("deleted_at", { ascending: false }).limit(100),
+      fetchAllPages<DeletedMovement>((from, to) => supabase.from("deleted_movements").select("*").order("deleted_at", { ascending: false }).order("id", { ascending: false }).range(from, to)),
     ]);
     setProducts(productsRes.data || []);
-    setMovements((movementsRes.data as Movement[]) || []);
-    setDeletedMovements((deletedRes.data as DeletedMovement[]) || []);
+    setMovements(movementsRes);
+    setDeletedMovements(deletedRes);
     const map: ProfileMap = {};
     for (const p of (profilesRes.data || [])) { map[p.id] = { full_name: p.full_name, email: p.email }; }
     setProfileMap(map);
-    setLoading(false);
-  }, []);
+    } catch (error) {
+      toast({ title: "No se pudo cargar el historial", description: error instanceof Error ? error.message : "Intentá nuevamente", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
