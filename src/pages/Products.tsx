@@ -6,16 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Download, Search, AlertTriangle, SlidersHorizontal, FileText, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Search, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { generateStockReportPdf } from "@/lib/stockReportPdf";
 
 type Product = {
   id: string; nombre: string; referencia: string | null; categoria: string; unidad: string;
@@ -57,9 +55,6 @@ export default function Products() {
   const [adjustValue, setAdjustValue] = useState<number | "">("");
   const [adjustNotes, setAdjustNotes] = useState("");
   const [adjustSaving, setAdjustSaving] = useState(false);
-
-  // Selection for PDF report
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const fetchProducts = async () => {
     const { data } = await supabase.from("products").select("*").order("nombre");
@@ -194,51 +189,6 @@ export default function Products() {
     toast({ title: "CSV exportado correctamente" });
   };
 
-  // ── Selection for PDF ─────────────────────────────────────
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleSelectAllFiltered = () => {
-    setSelectedIds(prev => {
-      const allFilteredSelected = filtered.length > 0 && filtered.every(p => prev.has(p.id));
-      const next = new Set(prev);
-      if (allFilteredSelected) filtered.forEach(p => next.delete(p.id));
-      else filtered.forEach(p => next.add(p.id));
-      return next;
-    });
-  };
-
-  const clearSelection = () => setSelectedIds(new Set());
-
-  const handleGeneratePdf = () => {
-    const selected = products.filter(p => selectedIds.has(p.id));
-    if (selected.length === 0) {
-      toast({ title: "Seleccioná al menos un producto", variant: "destructive" });
-      return;
-    }
-    generateStockReportPdf(
-      selected
-        .sort((a, b) => a.nombre.localeCompare(b.nombre))
-        .map(p => ({
-          nombre: p.nombre,
-          referencia: p.referencia,
-          categoria: p.categoria,
-          unidad: p.unidad,
-          stock_actual: Number(p.stock_actual),
-        }))
-    );
-    toast({ title: "Informe PDF generado", description: `${selected.length} productos incluidos.` });
-  };
-
-  const selectedCount = selectedIds.size;
-  const allFilteredSelected = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id));
-  const someFilteredSelected = filtered.some(p => selectedIds.has(p.id)) && !allFilteredSelected;
-
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -250,37 +200,11 @@ export default function Products() {
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
             <Download className="w-4 h-4 mr-1" /> Exportar CSV
           </Button>
-          <Button
-            size="sm"
-            variant={selectedCount > 0 ? "default" : "outline"}
-            onClick={handleGeneratePdf}
-            disabled={selectedCount === 0}
-          >
-            <FileText className="w-4 h-4 mr-1" /> Informe PDF{selectedCount > 0 ? ` (${selectedCount})` : ""}
-          </Button>
           <Button size="sm" onClick={openCreate}>
             <Plus className="w-4 h-4 mr-1" /> Nuevo Producto
           </Button>
         </div>
       </div>
-
-      {/* Selection bar */}
-      {selectedCount > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-          <p className="text-sm">
-            <span className="font-semibold text-primary">{selectedCount}</span>{" "}
-            <span className="text-muted-foreground">producto{selectedCount === 1 ? "" : "s"} seleccionado{selectedCount === 1 ? "" : "s"} para el informe</span>
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={clearSelection}>
-              <X className="w-3.5 h-3.5 mr-1" /> Limpiar
-            </Button>
-            <Button size="sm" onClick={handleGeneratePdf}>
-              <FileText className="w-3.5 h-3.5 mr-1" /> Generar PDF
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -301,13 +225,6 @@ export default function Products() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
-                      onCheckedChange={() => toggleSelectAllFiltered()}
-                      aria-label="Seleccionar todos"
-                    />
-                  </TableHead>
                   <TableHead>Nombre</TableHead>
                   <TableHead>Referencia</TableHead>
                   <TableHead>Categoría</TableHead>
@@ -322,16 +239,8 @@ export default function Products() {
               <TableBody>
                 {filtered.map(p => {
                   const isLow = p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo;
-                  const isSelected = selectedIds.has(p.id);
                   return (
-                    <TableRow key={p.id} className={isSelected ? "bg-primary/5" : isLow ? "bg-destructive/5" : ""}>
-                      <TableCell className="w-10">
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSelect(p.id)}
-                          aria-label={`Seleccionar ${p.nombre}`}
-                        />
-                      </TableCell>
+                    <TableRow key={p.id} className={isLow ? "bg-destructive/5" : ""}>
                       <TableCell className="font-medium">{p.nombre}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">{p.referencia || "—"}</TableCell>
                       <TableCell><Badge variant="secondary">{p.categoria}</Badge></TableCell>

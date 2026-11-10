@@ -1,5 +1,4 @@
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -7,7 +6,6 @@ import { cn } from "@/lib/utils";
 export type Product = {
   id: string;
   nombre: string;
-  referencia?: string | null;
   categoria: string;
   unidad: string;
   stock_actual: number;
@@ -24,9 +22,6 @@ interface Props {
   sortDir: SortDir;
   onSort: (key: SortKey) => void;
   loading: boolean;
-  selectedIds?: Set<string>;
-  onToggleSelect?: (id: string) => void;
-  onToggleSelectAll?: () => void;
 }
 
 function StockBar({ actual, minimo, activo }: { actual: number; minimo: number | null; activo: boolean }) {
@@ -65,10 +60,7 @@ function Th({ label, col, sortKey, sortDir, onSort, className }: {
   );
 }
 
-export default function StockTable({
-  products, sortKey, sortDir, onSort, loading,
-  selectedIds, onToggleSelect, onToggleSelectAll,
-}: Props) {
+export default function StockTable({ products, sortKey, sortDir, onSort, loading }: Props) {
   if (loading) {
     return (
       <div className="p-6 space-y-3">
@@ -88,23 +80,10 @@ export default function StockTable({
     );
   }
 
-  const selectionEnabled = !!selectedIds && !!onToggleSelect;
-  const allSelected = selectionEnabled && products.length > 0 && products.every(p => selectedIds!.has(p.id));
-  const someSelected = selectionEnabled && products.some(p => selectedIds!.has(p.id)) && !allSelected;
-
   return (
     <Table>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          {selectionEnabled && (
-            <TableHead className="w-10">
-              <Checkbox
-                checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                onCheckedChange={() => onToggleSelectAll?.()}
-                aria-label="Seleccionar todos"
-              />
-            </TableHead>
-          )}
           <Th label="Producto" col="nombre" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
           <Th label="Categoría" col="categoria" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
           <TableHead>Unidad</TableHead>
@@ -116,24 +95,8 @@ export default function StockTable({
       <TableBody>
         {products.map((p) => {
           const isLow = p.stock_minimo_activo && p.stock_minimo !== null && p.stock_actual <= p.stock_minimo;
-          const isSelected = selectionEnabled && selectedIds!.has(p.id);
           return (
-            <TableRow
-              key={p.id}
-              className={cn(
-                isLow ? "bg-destructive/5 hover:bg-destructive/10" : "",
-                isSelected ? "bg-primary/5 hover:bg-primary/10" : ""
-              )}
-            >
-              {selectionEnabled && (
-                <TableCell className="w-10">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onToggleSelect!(p.id)}
-                    aria-label={`Seleccionar ${p.nombre}`}
-                  />
-                </TableCell>
-              )}
+            <TableRow key={p.id} className={isLow ? "bg-destructive/5 hover:bg-destructive/10" : ""}>
               <TableCell className="font-medium max-w-[200px]">
                 <span className="block truncate" title={p.nombre}>{p.nombre}</span>
               </TableCell>
