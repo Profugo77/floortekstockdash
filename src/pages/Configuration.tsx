@@ -154,7 +154,11 @@ export default function Configuration() {
   };
 
   const handleApprove = async (profileId: string) => {
-    await supabase.from("profiles").update({ status: "approved" }).eq("id", profileId);
+    const { data, error } = await supabase.from("profiles").update({ status: "approved" }).eq("id", profileId).select("id");
+    if (error || !data?.length) {
+      toast({ title: "No se pudo aprobar", description: error?.message ?? "Sin permisos", variant: "destructive" });
+      return;
+    }
     toast({ title: "Usuario aprobado. Ya puede ingresar al sistema." });
     fetchProfiles();
   };
